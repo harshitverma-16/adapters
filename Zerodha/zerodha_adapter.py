@@ -46,9 +46,9 @@ class ZerodhaAdapter:
         self._check_login()
         return self.order_api.place_order(symbol, qty, order_type, transaction_type, product, exchange, validity, price, trigger_price)
 
-    def modify_order(self, order_id, order_type, qty, validity):
+    def modify_order(self, order_id, order_type, qty, validity, price):
         self._check_login()
-        return self.order_api.modify_order(order_id, order_type, qty, validity)
+        return self.order_api.modify_order(order_id, order_type, qty, validity, price)
 
     def cancel_order(self, order_id):
         self._check_login()

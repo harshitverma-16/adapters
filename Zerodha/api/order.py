@@ -37,7 +37,7 @@ class ZerodhaOrderAPI:
     
     
     # Modify Order
-    def modify_order(self, order_id, order_type, qty, validity):
+    def modify_order(self, order_id, order_type, qty, validity, price):
         url = f"{self.BASE_URL}/orders/regular/{order_id}"
 
         headers = {
@@ -48,7 +48,8 @@ class ZerodhaOrderAPI:
         payload = {
             "order_type": order_type,
             "quantity": qty,
-            "validity": validity
+            "validity": validity,
+            "price": price
         }
 
         res = requests.put(url, headers=headers, data=payload)

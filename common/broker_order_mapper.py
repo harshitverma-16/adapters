@@ -25,7 +25,7 @@ class OrderLog:
         self.OrderGeneratedDateTime = 0
         self.ExchangeTransactTime = 0
         self.AverageTradedPrice = 0.0
-        self.UserText = {}  # raw broker JSON for reference
+        #self.UserText = {}  # raw broker JSON for reference
 
     def to_dict(self):
         """Convert OrderLog to dictionary."""
@@ -47,7 +47,7 @@ class OrderLog:
             "OrderGeneratedDateTime": self.OrderGeneratedDateTime,
             "ExchangeTransactTime": self.ExchangeTransactTime,
             "AverageTradedPrice": self.AverageTradedPrice,
-            "UserText": self.UserText,
+            #"UserText": self.UserText,
         }
 
     def to_json(self):
@@ -73,8 +73,7 @@ class BrokerOrderMapper:
             else:
                 raise ValueError(f"Unsupported broker: {broker_name}")
 
-            # Store the original dict directly (not as a JSON string)
-            order_log.UserText = data
+            # UserText removed - attribute is commented out
 
         except Exception as e:
             logging.error(f"[OrderLog Mapper Error] {e}")

@@ -3,7 +3,8 @@ import logging
 import sys
 import os
 
-sys.path.append(os.getcwd()) 
+sys.path.append(os.getcwd())
+import config
 
 from kiteconnect import KiteTicker
 from common.broker_order_mapper import BrokerOrderMapper
@@ -24,12 +25,13 @@ class ZerodhaWebSocket:
         self.callback_func = callback_func
         
         # Channel Names (Still useful to define here for routing)
-        self.CH_ZERODHA_RESPONSE = "zerodha.response"
-        self.CH_BLITZ_RESPONSE = "blitz.response"
+        self.CH_ZERODHA_RESPONSE = config.CH_ZERODHA_RESPONSES
+        self.CH_BLITZ_RESPONSE = config.CH_BLITZ_RESPONSES
         
         self.kws = None
         self.is_connected = False
-        self.should_reconnect = True 
+        self.should_reconnect = True
+        self.order_cache = {}  # For deduplication 
 
     def start(self):
         """Initializes the KiteTicker and connects in a background thread."""
@@ -117,8 +119,25 @@ class ZerodhaWebSocket:
         self._publish(self.CH_BLITZ_RESPONSE, json.dumps(event))
 
     def _on_order_update(self, ws, data):
+        #-----------------for duplication---------
         try:
-            logging.info(f"Order Update: {data.get('order_id')} [{data.get('status')}]")
+            order_id = data.get('order_id')
+            status = data.get('status')
+            filled_qty = data.get('filled_quantity', 0)
+            cancelled_qty = data.get('cancelled_quantity', 0)
+            
+            # --- DEDUPLICATION LOGIC ---
+            current_state = (status, filled_qty, cancelled_qty)
+            last_state = self.order_cache.get(order_id)
+            
+            if last_state == current_state:
+                #logging.info(f"Ignored duplicate update for {order_id}: {status}")
+                return
+            
+            self.order_cache[order_id] = current_state
+            # ---------------------------
+            
+            logging.info(f"Order Update: {order_id} [{status}]")
             
             # 1. Publish Raw Zerodha Data (Unmodified) to Zerodha Channel
             self._publish(self.CH_ZERODHA_RESPONSE, json.dumps(data))
