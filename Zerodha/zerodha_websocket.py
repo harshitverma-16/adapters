@@ -82,22 +82,21 @@ class ZerodhaWebSocket:
         logging.info("WebSocket connected")
         
         event = {
-            "message_type": "SYSTEM_EVENT",
             "broker": "Zerodha",
             "data": {"source": "zerodha_websocket", "status": "CONNECTED"}
         }
-        self._publish(self.CH_BLITZ_RESPONSE, json.dumps(event))
+        #self._publish(self.CH_BLITZ_RESPONSE, json.dumps(event))
 
     def _on_close(self, ws, code, reason):
         self.is_connected = False
         logging.warning(f"WebSocket closed: {code} {reason}")
         
         event = {
-            "message_type": "SYSTEM_EVENT",
             "broker": "Zerodha",
             "data": {"source": "zerodha_websocket", "status": "DISCONNECTED", "code": code, "reason": reason}
         }
-        self._publish(self.CH_BLITZ_RESPONSE, json.dumps(event))
+        #
+        # self._publish(self.CH_BLITZ_RESPONSE, json.dumps(event))
         
         if self.should_reconnect:
             import time
@@ -161,18 +160,18 @@ class ZerodhaWebSocket:
             logging.error(f"Error processing order update: {e}")
 
 
-    # -----------  Market data -----------
-    # def _on_ticks(self, ws, ticks):
-    #     try:
-    #         response = {
-    #             "message_type": "MARKET_DATA",
-    #             "broker": "Zerodha",
-    #             "data": ticks
-    #         }
-    #         # Wrapper for datetime serialization
-    #         self._publish(self.CH_BLITZ_RESPONSE, json.dumps(response, default=str))
-    #     except Exception as e:
-    #         logging.error(f"Error publishing ticks: {e}")
+    #-----------  Market data -----------
+    def _on_ticks(self, ws, ticks):
+        try:
+            response = {
+                "message_type": "MARKET_DATA",
+                "broker": "Zerodha",
+                "data": ticks
+            }
+            # Wrapper for datetime serialization
+            self._publish(self.CH_BLITZ_RESPONSE, json.dumps(response, default=str))
+        except Exception as e:
+            logging.error(f"Error publishing ticks: {e}")
 
 
 if __name__ == "__main__":

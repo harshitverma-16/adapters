@@ -8,46 +8,123 @@ class OrderLog:
     Standardized Order Log format for Blitz.
     """
     def __init__(self):
+        # Existing Identifiers
         self.ExchangeOrderId = None
         self.ExecutionId = None
         self.Account = None
         self.InstrumentId = 0
+        self.InstrumentName = None
+        
+        # Identifiers & Metadata
+        self.Id = 0
+        self.EntityId = ""
+        self.ExchangeSegment = ""
+        self.ExchangeInstrumentId = 0
+        self.InstrumentType = 0
+        self.BlitzOrderId = 0
+        self.ClientId = ""
+        self.OrderTag = ""
+        self.AlgoId = ""
+        self.AlgoCategoryId = ""
+        self.ClearingFirmId = ""
+        self.PANId = ""
+        self.StrategyTag = ""
+        self.SequenceNumber = 0
+        self.CorrelationOrderId = None
+
+        # Order Details
         self.OrderQuantity = 0
         self.OrderPrice = 0.0
         self.OrderSide = ""
         self.OrderType = ""
         self.OrderStatus = ""
-        self.InstrumentName = None
+        self.OrderStopPrice = 0.0
+        self.OrderTriggerPrice = 0.0
+        self.OrderDisclosedQuantity = 0
+        self.MinimumQuantity = 0
+        self.TIF = ""  # e.g. "DAY"
+        self.ExecutionType = "" # e.g. "MANUAL"
+
+        # Trade/Execution Details
         self.LeavesQuantity = 0
         self.CumulativeQuantity = 0
-        self.OrderTriggerPrice = 0.0
-        self.CancelledQuantity = 0
-        self.OrderGeneratedDateTime = 0
-        self.ExchangeTransactTime = 0
+        self.LastTradedQuantity = 0
+        self.LastTradedPrice = 0.0
         self.AverageTradedPrice = 0.0
-        #self.UserText = {}  # raw broker JSON for reference
+        self.AverageTradedValue = 0.0
+        self.CancelledQuantity = 0
+        self.OrderModificationCount = 0
+        self.OrderTradeCount = 0
+
+        # Timing
+        self.OrderGeneratedDateTime = 0
+        self.LastRequestDateTime = 0
+        self.ExchangeTransactTime = 0
+        self.OrderExpiryDate = 0
+
+        # Flags & Status
+        self.IsFictiveOrder = False
+        self.IsOrderCompleted = None
+        self.RejectType = "NONE"
+        self.RejectTypeReason = ""
+        
+        # User Data
+        self.UserText = ""
 
     def to_dict(self):
         """Convert OrderLog to dictionary."""
         return {
+            "Id": self.Id,
+            "EntityId": self.EntityId,
+            "InstrumentId": self.InstrumentId,
+            "ExchangeSegment": self.ExchangeSegment,
+            "ExchangeInstrumentId": self.ExchangeInstrumentId,
+            "InstrumentName": self.InstrumentName,
+            "InstrumentType": self.InstrumentType,
+            "BlitzOrderId": self.BlitzOrderId,
             "ExchangeOrderId": self.ExchangeOrderId,
             "ExecutionId": self.ExecutionId,
             "Account": self.Account,
-            "InstrumentId": self.InstrumentId,
+            "ClientId": self.ClientId,
+            "OrderType": self.OrderType,
+            "OrderSide": self.OrderSide,
+            "OrderStatus": self.OrderStatus,
             "OrderQuantity": self.OrderQuantity,
             "OrderPrice": self.OrderPrice,
-            "OrderSide": self.OrderSide,
-            "OrderType": self.OrderType,
-            "OrderStatus": self.OrderStatus,
-            "InstrumentName": self.InstrumentName,
-            "LeavesQuantity": self.LeavesQuantity,
-            "CumulativeQuantity": self.CumulativeQuantity,
+            "OrderStopPrice": self.OrderStopPrice,
             "OrderTriggerPrice": self.OrderTriggerPrice,
-            "CancelledQuantity": getattr(self, "CancelledQuantity", 0),
+            "LastTradedQuantity": self.LastTradedQuantity,
+            "LastTradedPrice": self.LastTradedPrice,
+            "CumulativeQuantity": self.CumulativeQuantity,
+            "LeavesQuantity": self.LeavesQuantity,
+            "TIF": self.TIF,
+            "OrderExpiryDate": self.OrderExpiryDate,
+            "OrderDisclosedQuantity": self.OrderDisclosedQuantity,
+            "MinimumQuantity": self.MinimumQuantity,
             "OrderGeneratedDateTime": self.OrderGeneratedDateTime,
+            "LastRequestDateTime": self.LastRequestDateTime,
             "ExchangeTransactTime": self.ExchangeTransactTime,
+            "OrderModificationCount": self.OrderModificationCount,
+            "OrderTradeCount": self.OrderTradeCount,
             "AverageTradedPrice": self.AverageTradedPrice,
-            #"UserText": self.UserText,
+            "AverageTradedValue": self.AverageTradedValue,
+            "IsFictiveOrder": self.IsFictiveOrder,
+            "RejectType": self.RejectType,
+            "RejectTypeReason": self.RejectTypeReason,
+            "OrderTag": self.OrderTag,
+            "AlgoId": self.AlgoId,
+            "AlgoCategoryId": self.AlgoCategoryId,
+            "ClearingFirmId": self.ClearingFirmId,
+            "PANId": self.PANId,
+            "IsOrderCompleted": self.IsOrderCompleted,
+            "UserText": self.UserText,
+            "ExecutionType": self.ExecutionType,
+            "StrategyTag": self.StrategyTag,
+            "SequenceNumber": self.SequenceNumber,
+            "CorrelationOrderId": self.CorrelationOrderId,
+            
+            # Additional internal fields if needed
+            "CancelledQuantity": getattr(self, "CancelledQuantity", 0),
         }
 
     def to_json(self):
@@ -90,7 +167,8 @@ class BrokerOrderMapper:
 
         o.ExchangeOrderId = details.get("exchange_order_id", details.get("order_id"))
         o.ExecutionId = details.get("order_id")
-        o.Account = details.get("account_id")
+        o.ExchangeSegment = details.get("exchange")
+        #o.Account = details.get("account_id")
 
         o.InstrumentName = details.get("tradingsymbol")
         o.InstrumentId = details.get("instrument_token", 0)
@@ -113,6 +191,7 @@ class BrokerOrderMapper:
         o.AverageTradedPrice = float(details.get("average_price", 0.0))
         o.OrderGeneratedDateTime = (details.get("order_timestamp"))
         o.ExchangeTransactTime = (details.get("exchange_timestamp"))
+        o.IsOrderCompleted = BrokerOrderMapper._map_status(raw_status)
         # o.OrderGeneratedDateTime = BrokerOrderMapper._to_epoch(details.get("order_timestamp"))
         # o.ExchangeTransactTime = BrokerOrderMapper._to_epoch(details.get("exchange_timestamp"))
 
