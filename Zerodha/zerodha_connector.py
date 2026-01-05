@@ -261,13 +261,13 @@ class ZerodhaConnector:
 
     def _send_response_to_blitz(self, req_id, status, data, error):
         response = {
-            "broker": "Zerodha",
-            "request_id": req_id,
+            #"broker": "Zerodha",
+            #"request_id": req_id,
             "status": status,
             "data": data,
             "error": error
         }
-        self.redis.publish(config.CH_ZERODHA_RESPONSES, json.dumps(response))
+        self.redis.publish(config.CH_BLITZ_RESPONSES, json.dumps(response))
 
 if __name__ == "__main__":
     connector = ZerodhaConnector()

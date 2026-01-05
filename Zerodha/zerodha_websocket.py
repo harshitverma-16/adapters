@@ -138,6 +138,7 @@ class ZerodhaWebSocket:
             # ---------------------------
             
             logging.info(f"Order Update: {order_id} [{status}]")
+            logging.info(f"Zerodha raw response: {data}")
             
             # 1. Publish Raw Zerodha Data (Unmodified) to Zerodha Channel
             self._publish(self.CH_ZERODHA_RESPONSE, json.dumps(data))
@@ -148,27 +149,30 @@ class ZerodhaWebSocket:
             
             # 3. Publish STANDARDIZED Blitz format to Blitz Channel
             blitz_response = {
-                "message_type": "ORDER_UPDATE",
+                #"message_type": "ORDER_UPDATE",
                 "broker": "Zerodha",
                 "data": order_log.to_dict()
             }
             self._publish(self.CH_BLITZ_RESPONSE, json.dumps(blitz_response))
             logging.info(f"Published standardized order to {self.CH_BLITZ_RESPONSE}")
+            logging.info(f"Blitz response: {blitz_response}")
 
         except Exception as e:
             logging.error(f"Error processing order update: {e}")
 
-    def _on_ticks(self, ws, ticks):
-        try:
-            response = {
-                "message_type": "MARKET_DATA",
-                "broker": "Zerodha",
-                "data": ticks
-            }
-            # Wrapper for datetime serialization
-            self._publish(self.CH_BLITZ_RESPONSE, json.dumps(response, default=str))
-        except Exception as e:
-            logging.error(f"Error publishing ticks: {e}")
+
+    # -----------  Market data -----------
+    # def _on_ticks(self, ws, ticks):
+    #     try:
+    #         response = {
+    #             "message_type": "MARKET_DATA",
+    #             "broker": "Zerodha",
+    #             "data": ticks
+    #         }
+    #         # Wrapper for datetime serialization
+    #         self._publish(self.CH_BLITZ_RESPONSE, json.dumps(response, default=str))
+    #     except Exception as e:
+    #         logging.error(f"Error publishing ticks: {e}")
 
 
 if __name__ == "__main__":

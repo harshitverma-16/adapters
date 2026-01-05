@@ -11,9 +11,11 @@ class ZerodhaAuthAPI:
         self.api_secret = api_secret
         self.redirect_url = redirect_url
 
+    # Generate Login URL
     def generate_login_url(self):
         return f"{LOGIN_URL}?v=3&api_key={self.api_key}"
 
+    # Exchange Request Token for Access Token
     def exchange_token(self, request_token):
         checksum = hashlib.sha256(
             f"{self.api_key}{request_token}{self.api_secret}".encode()
@@ -28,3 +30,5 @@ class ZerodhaAuthAPI:
         res = requests.post(TOKEN_URL, data=payload)
         res.raise_for_status()
         return res.json()["data"]["access_token"]
+
+        
