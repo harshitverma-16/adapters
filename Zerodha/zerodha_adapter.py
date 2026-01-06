@@ -44,28 +44,42 @@ class ZerodhaAdapter:
 
     def place_order(self, symbol, qty, order_type, transaction_type, product, exchange, validity, price, trigger_price):
         self._check_login()
-        return self.order_api.place_order(symbol, qty, order_type, transaction_type, product, exchange, validity, price, trigger_price)
+        response = self.order_api.place_order(symbol, qty, order_type, transaction_type, product, exchange, validity, price, trigger_price)
+        print(response)
+        return response
 
     def modify_order(self, order_id, order_type, qty, validity, price):
         self._check_login()
-        return self.order_api.modify_order(order_id, order_type, qty, validity, price)
+        response = self.order_api.modify_order(order_id, order_type, qty, validity, price)
+        print(response)
+        return response
 
     def cancel_order(self, order_id):
         self._check_login()
-        return self.order_api.cancel_order(order_id)
+        response = self.order_api.cancel_order(order_id)
+        print(response)
+        return response
 
     def get_orders(self):
         self._check_login()
-        return self.order_api.get_orders()
+        response = self.order_api.get_orders()
+        print(response)
+        return response
 
     def get_order_details(self, order_id):
         self._check_login()
-        return self.order_api.get_order_by_id(order_id)
+        response = self.order_api.get_order_by_id(order_id)
+        print(response)
+        return response
 
     def get_holdings(self):
         self._check_login()
-        return self.portfolio_api.get_holdings()
+        response = self.portfolio_api.get_holdings()
+        print(response)
+        return response
 
     def get_positions(self):
         self._check_login()
-        return self.portfolio_api.get_positions()
+        response = self.portfolio_api.get_positions()
+        print(response)
+        return response

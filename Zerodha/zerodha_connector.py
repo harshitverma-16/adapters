@@ -162,7 +162,7 @@ class ZerodhaConnector:
 
                 elif action == "MODIFY_ORDER":
                     result = self.adapter.modify_order(
-                        order_id=blitz_data.get("BOID"),
+                        order_id=blitz_data.get("order_id"),
                         order_type=blitz_data.get("orderType", "LIMIT"),
                         qty=int(blitz_data.get("quantity", 0)),
                         validity=blitz_data.get("validity", "DAY"),
@@ -170,13 +170,13 @@ class ZerodhaConnector:
                     )
 
                 elif action == "CANCEL_ORDER":
-                    result = self.adapter.cancel_order(blitz_data.get("BOID"))
+                    result = self.adapter.cancel_order(blitz_data.get("order_id"))
 
                 elif action == "GET_ORDERS":
                     result = self.adapter.get_orders()
 
                 elif action == "GET_ORDER_DETAILS":
-                    result = self.adapter.get_order_details(blitz_data.get("BOID"))
+                    result = self.adapter.get_order_details(blitz_data.get("order_id"))
 
                 elif action == "GET_HOLDINGS":
                     result = self.adapter.get_holdings()
@@ -194,7 +194,7 @@ class ZerodhaConnector:
                 # Publish error to Zerodha channel
                 self.redis.publish(config.CH_ZERODHA_RESPONSES, f" !! Error executing {action}: {e}")
 
-            self._send_response_to_blitz(status, result, error_msg)
+            #self._send_response_to_blitz(result, error_msg)
 
         except json.JSONDecodeError:
             logging.critical(" !! Critical: Failed to decode JSON message from Redis")
@@ -255,15 +255,15 @@ class ZerodhaConnector:
         self.websocket.subscribe(tokens, mode)
         logging.info(f"Subscribed to {len(tokens)} instruments in {mode} mode")
 
-    def _send_response_to_blitz(self, status, data, error):
-        response = {
-            #"broker": "Zerodha",
-            #"request_id": req_id,
-            "status": status,
-            "data": data,
-            "error": error
-        }
-        self.redis.publish(config.CH_BLITZ_RESPONSES, json.dumps(response))
+    # def _send_response_to_blitz(self, data, error):
+    #     response = {
+    #         #"broker": "Zerodha",
+    #         #"request_id": req_id,
+    #         #"status": status,
+    #         "data": data,
+    #         "error": error
+    #     }
+    #     self.redis.publish(config.CH_BLITZ_RESPONSES, json.dumps(response))
 
 if __name__ == "__main__":
     connector = ZerodhaConnector()

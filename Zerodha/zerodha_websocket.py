@@ -33,6 +33,7 @@ class ZerodhaWebSocket:
         self.is_connected = False
         self.should_reconnect = True
         self.order_cache = {}  # For deduplication 
+        self.start()
 
     def start(self):
         """Initializes the KiteTicker and connects in a background thread."""
