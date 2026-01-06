@@ -179,9 +179,9 @@ class BrokerOrderMapper:
         o.ExchangeInstrumentId = 0        # not provided
         o.InstrumentName = details.get("tradingsymbol")
         o.InstrumentType = 0              # not provided
-        o.BlitzOrderId = 0                # not provided
+        o.BlitzOrderId = details.get("order_id")                # not provided
         o.ExchangeOrderId = details.get("exchange_order_id", details.get("order_id"))
-        o.ExecutionId = details.get("order_id")
+        o.ExecutionId = 0
         o.Account = details.get("account_id")
         o.ClientId = details.get("client_id", "") # Attempt to map ClientId if available
 

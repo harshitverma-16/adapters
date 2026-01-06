@@ -170,7 +170,7 @@ class ZerodhaWebSocket:
             log_entry = {
                 "timestamp": datetime.utcnow().isoformat(),
                 "source": source,
-                "raw_response": raw_response,
+                #"raw_response": raw_response,
                 "blitz_response": blitz_response
             }
             with open("transaction_log.json", "a") as f:
