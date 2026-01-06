@@ -83,12 +83,12 @@ class ZerodhaConnector:
     def _process_message(self, raw_data):
         try:
             payload = json.loads(raw_data)
-            req_id = payload.get("request_id")
+            #req_id = payload.get("request_id")
             action = payload.get("action")
             blitz_data = payload.get("data", {})
 
-            logging.info(f" -> Received: {action} [ID: {req_id}]")
-            self.redis.publish(config.CH_ZERODHA_RESPONSES, f" -> Received: {action} [ID: {req_id}]")
+            logging.info(f" -> Received: {action}")
+            self.redis.publish(config.CH_ZERODHA_RESPONSES, f" -> Received: {action}")
             
             result = None
             status = "SUCCESS"
@@ -161,22 +161,16 @@ class ZerodhaConnector:
                     #     logging.error(f"Failed to publish standardized response: {e}")
 
                 elif action == "MODIFY_ORDER":
-                    if hasattr(self.adapter, 'modify_order'):
-                         result = self.adapter.modify_order(
-                            order_id=blitz_data.get("order_id"),
-                            order_type=blitz_data.get("orderType", "LIMIT"),
-                            qty=int(blitz_data.get("quantity", 0)),
-                            validity=blitz_data.get("validity", "DAY"),
-                            price=blitz_data.get("price")
-                        )
-                    else:
-                        raise NotImplementedError("modify_order not implemented in adapter")
+                    result = self.adapter.modify_order(
+                        order_id=blitz_data.get("order_id"),
+                        order_type=blitz_data.get("orderType", "LIMIT"),
+                        qty=int(blitz_data.get("quantity", 0)),
+                        validity=blitz_data.get("validity", "DAY"),
+                        price=blitz_data.get("price")
+                    )
 
                 elif action == "CANCEL_ORDER":
-                    if hasattr(self.adapter, 'cancel_order'):
-                        result = self.adapter.cancel_order(blitz_data.get("order_id"))
-                    else:
-                        raise NotImplementedError("cancel_order not implemented in adapter")
+                    result = self.adapter.cancel_order(blitz_data.get("order_id"))
 
                 elif action == "GET_ORDERS":
                     result = self.adapter.get_orders()

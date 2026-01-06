@@ -182,8 +182,8 @@ class BrokerOrderMapper:
         o.BlitzOrderId = 0                # not provided
         o.ExchangeOrderId = details.get("exchange_order_id", details.get("order_id"))
         o.ExecutionId = details.get("order_id")
-        o.Account = None                  # not provided
-        o.ClientId = ""                   # not provided
+        o.Account = details.get("account_id")
+        o.ClientId = details.get("client_id", "") # Attempt to map ClientId if available
 
         # Order Basics
         o.OrderType = details.get("order_type", "").upper()
@@ -192,57 +192,64 @@ class BrokerOrderMapper:
         o.OrderStatus = BrokerOrderMapper._map_status(raw_status)
         o.OrderQuantity = int(details.get("quantity", 0))
         o.OrderPrice = float(details.get("price", 0.0))
-        o.OrderStopPrice = 0.0            # not provided
+        o.OrderStopPrice = 0.0
         o.OrderTriggerPrice = float(details.get("trigger_price", 0.0))
 
         # Trade / Execution
-        o.LastTradedQuantity = 0          # not provided
-        o.LastTradedPrice = 0.0           # not provided
+        o.LastTradedQuantity = 0
+        o.LastTradedPrice = 0.0
         o.CumulativeQuantity = int(details.get("filled_quantity", 0))
         o.LeavesQuantity = int(details.get("pending_quantity", 0))
 
         # Time-in-Force & Expiry
-        o.TIF = ""                        # not provided
-        o.OrderExpiryDate = 0             # not provided
+        o.TIF = details.get("validity", "")
+        o.OrderExpiryDate = 0
 
         # Quantity Constraints
-        o.OrderDisclosedQuantity = 0      # not provided
-        o.MinimumQuantity = 0             # not provided
+        o.OrderDisclosedQuantity = int(details.get("disclosed_quantity", 0))
+        o.MinimumQuantity = 0
 
         # Timing
         o.OrderGeneratedDateTime = details.get("order_timestamp")
-        o.LastRequestDateTime = 0         # not provided
+        o.LastRequestDateTime = 0
         o.ExchangeTransactTime = details.get("exchange_timestamp")
 
         # Counters
-        o.OrderModificationCount = 0      # not provided
-        o.OrderTradeCount = 0             # not provided
+        o.OrderModificationCount = 0
+        o.OrderTradeCount = 0
 
         # Averages
         o.AverageTradedPrice = float(details.get("average_price", 0.0))
-        o.AverageTradedValue = 0.0        # not provided
+        o.AverageTradedValue = 0.0
 
         # Flags & Rejection
-        o.IsFictiveOrder = False          # not provided
-        o.RejectType = "NONE"             # not provided
-        o.RejectTypeReason = ""           # not provided
+        o.IsFictiveOrder = False
+        o.RejectType = "NONE"
+        o.RejectTypeReason = ""
 
         # Tags & Algo
-        o.OrderTag = ""                   # not provided
-        o.AlgoId = ""                     # not provided
-        o.AlgoCategoryId = ""             # not provided
-        o.ClearingFirmId = ""             # not provided
-        o.PANId = ""                      # not provided
+        o.OrderTag = details.get("tag", "")
+        o.AlgoId = ""
+        o.AlgoCategoryId = ""
+        o.ClearingFirmId = ""
+        o.PANId = ""
 
         # Completion & User Data
-        o.IsOrderCompleted = BrokerOrderMapper._map_status(raw_status)
-        o.UserText = ""                   # not provided
-        o.ExecutionType = ""              # not provided
-        o.StrategyTag = ""                # not provided
+        o.IsOrderCompleted = (o.OrderStatus in ["FILLED", "CANCELLED", "REJECTED"])
+
+        status_msg = details.get("status_message") or details.get("status_message_raw")
+        if status_msg:
+             o.RejectTypeReason = status_msg
+             o.UserText = status_msg
+        else:
+             o.UserText = ""
+
+        o.ExecutionType = ""
+        o.StrategyTag = ""
 
         # Sequencing
-        o.SequenceNumber = 0              # not provided
-        o.CorrelationOrderId = None       # not provided
+        o.SequenceNumber = 0
+        o.CorrelationOrderId = 0 # doubt 
 
 
     # ─────────────────────────────

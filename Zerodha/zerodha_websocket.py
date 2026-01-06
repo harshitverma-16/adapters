@@ -1,6 +1,7 @@
 import json
 import logging
 import sys
+from datetime import datetime
 import os
 
 sys.path.append(os.getcwd())
@@ -152,12 +153,30 @@ class ZerodhaWebSocket:
                 "broker": "Zerodha",
                 "data": order_log.to_dict()
             }
+            logging.info(f"Blitz response: {blitz_response}")
             self._publish(self.CH_BLITZ_RESPONSE, json.dumps(blitz_response))
             logging.info(f"Published standardized order to {self.CH_BLITZ_RESPONSE}")
-            logging.info(f"Blitz response: {blitz_response}")
+            
+
+            # 4. Log Transaction to File
+            self._log_transaction("Zerodha", data, blitz_response)
 
         except Exception as e:
             logging.error(f"Error processing order update: {e}")
+
+    def _log_transaction(self, source, raw_response, blitz_response):
+        """Logs a transaction event to a file."""
+        try:
+            log_entry = {
+                "timestamp": datetime.utcnow().isoformat(),
+                "source": source,
+                "raw_response": raw_response,
+                "blitz_response": blitz_response
+            }
+            with open("transaction_log.json", "a") as f:
+                f.write(json.dumps(log_entry) + "\n")
+        except Exception as e:
+            logging.error(f"Failed to log transaction: {e}")
 
 
     #-----------  Market data -----------
