@@ -41,7 +41,7 @@ class ZerodhaConnector:
             if token:
                 self.adapter.login(token)
                 logging.info("Login Successful")
-                self.redis.publish(config.CH_ZERODHA_RESPONSES, "Login Successful")
+                self.redis.publish(config.CH_ZERODHA_RESPONSES, "Login Successful") #have multiple connections 
                 
                 # Initialize and start WebSocket
                 self._start_websocket()
