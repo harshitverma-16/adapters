@@ -8,21 +8,14 @@ class OrderLog:
     Standardized Order Log format for Blitz.
     """
     def __init__(self):
-        # Core Identifiers
         self.Id = 0
         self.EntityId = ""
         self.InstrumentId = 0
         self.ExchangeSegment = ""
-        self.ExchangeInstrumentId = 0
         self.InstrumentName = None
-        self.InstrumentType = 0
         self.BlitzOrderId = 0
         self.ExchangeOrderId = None
         self.ExecutionId = None
-        self.Account = None
-        self.ClientId = ""
-
-        # Order Basics
         self.OrderType = ""
         self.OrderSide = ""
         self.OrderStatus = ""
@@ -30,54 +23,16 @@ class OrderLog:
         self.OrderPrice = 0.0
         self.OrderStopPrice = 0.0
         self.OrderTriggerPrice = 0.0
-
-        # Trade / Execution
         self.LastTradedQuantity = 0
         self.LastTradedPrice = 0.0
-        self.CumulativeQuantity = 0
         self.LeavesQuantity = 0
-
-        # Time-in-Force & Expiry
         self.TIF = ""
-        self.OrderExpiryDate = 0
-
-        # Quantity Constraints
         self.OrderDisclosedQuantity = 0
-        self.MinimumQuantity = 0
-
-        # Timing
-        self.OrderGeneratedDateTime = 0
-        self.LastRequestDateTime = 0
         self.ExchangeTransactTime = 0
-
-        # Counters
-        self.OrderModificationCount = 0
-        self.OrderTradeCount = 0
-
-        # Averages
         self.AverageTradedPrice = 0.0
-        self.AverageTradedValue = 0.0
-
-        # Flags & Rejection
-        self.IsFictiveOrder = False
-        self.RejectType = "NONE"
-        self.RejectTypeReason = ""
-
-        # Tags & Algo
-        self.OrderTag = ""
-        self.AlgoId = ""
-        self.AlgoCategoryId = ""
-        self.ClearingFirmId = ""
-        self.PANId = ""
-
-        # Completion & User Data
         self.IsOrderCompleted = None
         self.UserText = ""
         self.ExecutionType = ""
-        self.StrategyTag = ""
-
-        # Sequencing
-        self.SequenceNumber = 0
         self.CorrelationOrderId = None
 
     def to_dict(self):
@@ -87,14 +42,10 @@ class OrderLog:
             "EntityId": self.EntityId,
             "InstrumentId": self.InstrumentId,
             "ExchangeSegment": self.ExchangeSegment,
-            "ExchangeInstrumentId": self.ExchangeInstrumentId,
             "InstrumentName": self.InstrumentName,
-            "InstrumentType": self.InstrumentType,
             "BlitzOrderId": self.BlitzOrderId,
             "ExchangeOrderId": self.ExchangeOrderId,
             "ExecutionId": self.ExecutionId,
-            "Account": self.Account,
-            "ClientId": self.ClientId,
             "OrderType": self.OrderType,
             "OrderSide": self.OrderSide,
             "OrderStatus": self.OrderStatus,
@@ -104,32 +55,14 @@ class OrderLog:
             "OrderTriggerPrice": self.OrderTriggerPrice,
             "LastTradedQuantity": self.LastTradedQuantity,
             "LastTradedPrice": self.LastTradedPrice,
-            "CumulativeQuantity": self.CumulativeQuantity,
             "LeavesQuantity": self.LeavesQuantity,
             "TIF": self.TIF,
-            "OrderExpiryDate": self.OrderExpiryDate,
             "OrderDisclosedQuantity": self.OrderDisclosedQuantity,
-            "MinimumQuantity": self.MinimumQuantity,
-            "OrderGeneratedDateTime": self.OrderGeneratedDateTime,
-            "LastRequestDateTime": self.LastRequestDateTime,
             "ExchangeTransactTime": self.ExchangeTransactTime,
-            "OrderModificationCount": self.OrderModificationCount,
-            "OrderTradeCount": self.OrderTradeCount,
             "AverageTradedPrice": self.AverageTradedPrice,
-            "AverageTradedValue": self.AverageTradedValue,
-            "IsFictiveOrder": self.IsFictiveOrder,
-            "RejectType": self.RejectType,
-            "RejectTypeReason": self.RejectTypeReason,
-            "OrderTag": self.OrderTag,
-            "AlgoId": self.AlgoId,
-            "AlgoCategoryId": self.AlgoCategoryId,
-            "ClearingFirmId": self.ClearingFirmId,
-            "PANId": self.PANId,
             "IsOrderCompleted": self.IsOrderCompleted,
             "UserText": self.UserText,
             "ExecutionType": self.ExecutionType,
-            "StrategyTag": self.StrategyTag,
-            "SequenceNumber": self.SequenceNumber,
             "CorrelationOrderId": self.CorrelationOrderId,
         }
 
@@ -167,25 +100,18 @@ class BrokerOrderMapper:
     # ZERODHA
     # ─────────────────────────────
     @staticmethod
-    def _map_zerodha(data: dict, o: OrderLog):
+    def _map_zerodha_minimal(data: dict, o: OrderLog):
         # Handle cases where data might be nested in 'details' or direct
         details = data.get("details", data)
 
-        # Core Identifiers
-        o.Id = 0                          # not provided
-        o.EntityId = ""                   # not provided
+        o.Id = 0
+        o.EntityId = ""
         o.InstrumentId = details.get("instrument_token", 0)
         o.ExchangeSegment = details.get("exchange")
-        o.ExchangeInstrumentId = 0        # not provided
         o.InstrumentName = details.get("tradingsymbol")
-        o.InstrumentType = 0              # not provided
-        o.BlitzOrderId = details.get("order_id")                # not provided
+        o.BlitzOrderId = details.get("order_id")
         o.ExchangeOrderId = details.get("exchange_order_id", details.get("order_id"))
         o.ExecutionId = 0
-        o.Account = details.get("account_id")
-        o.ClientId = details.get("client_id", "") # Attempt to map ClientId if available
-
-        # Order Basics
         o.OrderType = details.get("order_type", "").upper()
         o.OrderSide = details.get("transaction_type", "").upper()
         raw_status = details.get("status", "").upper()
@@ -194,62 +120,20 @@ class BrokerOrderMapper:
         o.OrderPrice = float(details.get("price", 0.0))
         o.OrderStopPrice = 0.0
         o.OrderTriggerPrice = float(details.get("trigger_price", 0.0))
-
-        # Trade / Execution
         o.LastTradedQuantity = 0
         o.LastTradedPrice = 0.0
-        o.CumulativeQuantity = int(details.get("filled_quantity", 0))
         o.LeavesQuantity = int(details.get("pending_quantity", 0))
-
-        # Time-in-Force & Expiry
         o.TIF = details.get("validity", "")
-        o.OrderExpiryDate = 0
-
-        # Quantity Constraints
         o.OrderDisclosedQuantity = int(details.get("disclosed_quantity", 0))
-        o.MinimumQuantity = 0
-
-        # Timing
-        o.OrderGeneratedDateTime = details.get("order_timestamp")
-        o.LastRequestDateTime = 0
         o.ExchangeTransactTime = details.get("exchange_timestamp")
-
-        # Counters
-        o.OrderModificationCount = 0
-        o.OrderTradeCount = 0
-
-        # Averages
         o.AverageTradedPrice = float(details.get("average_price", 0.0))
-        o.AverageTradedValue = 0.0
-
-        # Flags & Rejection
-        o.IsFictiveOrder = False
-        o.RejectType = "NONE"
-        o.RejectTypeReason = ""
-
-        # Tags & Algo
-        o.OrderTag = details.get("tag", "")
-        o.AlgoId = ""
-        o.AlgoCategoryId = ""
-        o.ClearingFirmId = ""
-        o.PANId = ""
-
-        # Completion & User Data
-        o.IsOrderCompleted = (o.OrderStatus in ["FILLED", "CANCELLED", "REJECTED"])
-
+        o.AverageTradedPrice = float(details.get("average_price", 0.0))
+        o.IsOrderCompleted = o.OrderStatus in ["FILLED", "CANCELLED", "REJECTED"]
         status_msg = details.get("status_message") or details.get("status_message_raw")
-        if status_msg:
-             o.RejectTypeReason = status_msg
-             o.UserText = status_msg
-        else:
-             o.UserText = ""
-
+        o.UserText = status_msg if status_msg else ""
         o.ExecutionType = ""
-        o.StrategyTag = ""
+        o.CorrelationOrderId = 0
 
-        # Sequencing
-        o.SequenceNumber = 0
-        o.CorrelationOrderId = 0 # doubt 
 
 
     # ─────────────────────────────
