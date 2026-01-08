@@ -22,6 +22,11 @@ class ZerodhaConnector:
         self.redis = redis.Redis(host=config.REDIS_HOST, port=config.REDIS_PORT, decode_responses=True)
         self.pubsub = self.redis.pubsub()
         self.is_running = False
+        
+        # Simple dictionary for order ID mapping: blitz_id -> zerodha_id
+        self.blitz_to_zerodha = {}
+        self.zerodha_to_blitz = {}
+        
         logging.info("[Connector] Connected to Redis successfully.")
         self.redis.publish(config.CH_ZERODHA_RESPONSES, "Connected to Redis successfully.")
 
@@ -113,17 +118,16 @@ class ZerodhaConnector:
                     self.adapter.logout()
                     result = {"message": "Logged out successfully"}
                 
-                elif action == "SUBSCRIBE_MARKET_DATA":
-                    # Subscribe to market data
-                    tokens = blitz_data.get("tokens", [])
-                    mode = blitz_data.get("mode", "full")
-                    self._subscribe_market_data(tokens, mode)
-                    result = {"message": f"Subscribed to {len(tokens)} instruments"}
 
                 elif action == "PLACE_ORDER":
+                    # Get Blitz order ID (required)
+                    blitz_order_id = blitz_data.get("BlitzOrderID") or blitz_data.get("blitz_order_id")
+                    if not blitz_order_id:
+                        raise ValueError("'BlitzOrderID' is required for PLACE_ORDER")
+                    
                     params = self._blitz_to_zerodha(blitz_data)
                     logging.info(f"Zerodha payload: {params}")
-                    result = self.adapter.place_order(
+                    zerodha_result = self.adapter.place_order(
                         symbol=params["symbol"],
                         qty=params["qty"],
                         order_type=params["order_type"],
@@ -135,34 +139,36 @@ class ZerodhaConnector:
                         validity=params["validity"]
                     )
                     
-                    # # --- Publish Standardized "PENDING" Order to blitz.response ---
-                    # try:
-                    #     order_id = result if isinstance(result, str) else result.get("order_id")
-                        
-                    #     # Create synthetic OrderLog
-                    #     o = OrderLog()
-                    #     o.ExchangeOrderId = order_id
-                    #     o.InstrumentName = f"{params['exchange']}:{params['symbol']}"
-                    #     o.OrderSide = params["transaction_type"]
-                    #     o.OrderType = params["order_type"]
-                    #     o.OrderQuantity = params["qty"]
-                    #     o.OrderPrice = params["price"]
-                    #     o.OrderStatus = "PENDING"  # Initial status
-                    #     o.UserText = {"source": "connector_place_order", "params": params}
-                        
-                    #     blitz_response = {
-                    #         "message_type": "ORDER_UPDATE",
-                    #         "broker": "Zerodha",
-                    #         "data": o.to_dict()
-                    #     }
-                    #     self.redis.publish(config.CH_BLITZ_RESPONSES, json.dumps(blitz_response))
-                    #     logging.info(f"Published PENDING order {order_id} to blitz.response")
-                    # except Exception as e:
-                    #     logging.error(f"Failed to publish standardized response: {e}")
+                    # Extract Zerodha order ID from result
+                    # Response format: {'status': 'success', 'data': {'order_id': '...'}}
+                    if isinstance(zerodha_result, dict):
+                        # Check if order_id is nested in 'data' field
+                        if "data" in zerodha_result and isinstance(zerodha_result["data"], dict):
+                            zerodha_order_id = zerodha_result["data"].get("order_id")
+                        else:
+                            zerodha_order_id = zerodha_result.get("order_id")
+                    else:
+                        zerodha_order_id = zerodha_result
+                    
+                    # Store the mapping in dictionary
+                    self.blitz_to_zerodha[blitz_order_id] = str(zerodha_order_id)
+                    self.zerodha_to_blitz[str(zerodha_order_id)] = blitz_order_id
+                    logging.info(f"Mapped: {blitz_order_id} → {zerodha_order_id}")
+                    
+                    # Return both IDs in result
+                    result = {
+                        "blitz_order_id": blitz_order_id,
+                        "zerodha_order_id": zerodha_order_id,
+                        "raw_response": zerodha_result
+                    }
+
 
                 elif action == "MODIFY_ORDER":
+                    # Resolve order ID (accepts both Blitz and Zerodha IDs)
+                    zerodha_order_id = self._resolve_order_id(blitz_data)
+                    
                     result = self.adapter.modify_order(
-                        order_id=blitz_data.get("order_id"),
+                        order_id=zerodha_order_id,
                         order_type=blitz_data.get("orderType", "LIMIT"),
                         qty=int(blitz_data.get("quantity", 0)),
                         validity=blitz_data.get("validity", "DAY"),
@@ -170,19 +176,27 @@ class ZerodhaConnector:
                     )
 
                 elif action == "CANCEL_ORDER":
-                    result = self.adapter.cancel_order(blitz_data.get("order_id"))
+                    # Resolve order ID (accepts both Blitz and Zerodha IDs)
+                    zerodha_order_id = self._resolve_order_id(blitz_data)
+                    result = self.adapter.cancel_order(zerodha_order_id)
 
                 elif action == "GET_ORDERS":
                     result = self.adapter.get_orders()
+                    print(result)
 
                 elif action == "GET_ORDER_DETAILS":
-                    result = self.adapter.get_order_details(blitz_data.get("order_id"))
+                    # Resolve order ID (accepts both Blitz and Zerodha IDs)
+                    zerodha_order_id = self._resolve_order_id(blitz_data)
+                    result = self.adapter.get_order_details(zerodha_order_id)
+                    print(result)
 
                 elif action == "GET_HOLDINGS":
                     result = self.adapter.get_holdings()
+                    print(result)
 
                 elif action == "GET_POSITIONS":
                     result = self.adapter.get_positions()
+                    print(result)
 
                 else:
                     raise ValueError(f"Unknown Action: {action}")
@@ -199,16 +213,34 @@ class ZerodhaConnector:
         except json.JSONDecodeError:
             logging.critical(" !! Critical: Failed to decode JSON message from Redis")
 
+    def _resolve_order_id(self, data):
+        """Helper to resolve order ID from either blitz_order_id or order_id."""
+        # Check for Blitz order ID first
+        blitz_order_id = data.get("BlitzOrderID")
+        if blitz_order_id:
+            zerodha_order_id = self.blitz_to_zerodha.get(blitz_order_id)
+            if not zerodha_order_id:
+                raise ValueError(f"Blitz order ID '{blitz_order_id}' not found in mapping")
+            logging.info(f"Resolved Blitz ID {blitz_order_id} → Zerodha ID {zerodha_order_id}")
+            return zerodha_order_id
+        
+        # Fall back to direct Zerodha order ID
+        order_id = data.get("order_id")
+        if order_id:
+            return order_id
+        
+        raise ValueError("Either 'blitz_order_id' or 'order_id' must be provided")
+    
     def _blitz_to_zerodha(self, data):
-        symbol_parts = data.get("symbol", "").split("|")
-        exchange = symbol_parts[0] if len(symbol_parts) > 1 else "NSE"
+        #symbol_parts = data.get("symbol", "").split("|")
+        #exchange = symbol_parts[0]
         
         # Use 'symbol' instead of 'tradingsymbol' to match Adapter.place_order arguments
-        symbol = symbol_parts[1] if len(symbol_parts) > 1 else data.get("symbol", "")
+        #symbol = symbol_parts[1] if len(symbol_parts) > 1 else data.get("symbol", "")
         
         payload = {
-            "symbol": symbol,
-            "exchange": exchange,
+            "symbol": data.get("InstrumentName"),
+            "exchange": data.get("ExchangeSegment")[:3],
             "transaction_type": data.get("orderSide"),
             "order_type": data.get("orderType"),
             "qty": int(data.get("quantity", 0)), # Renamed to qty and ensure int
@@ -231,9 +263,9 @@ class ZerodhaConnector:
                 api_key=config.API_KEY,
                 access_token=self.adapter.access_token,
                 user_id=config.USER_ID,
-                callback_func=self._publish_websocket_data
+                callback_func=self._publish_websocket_data,
+                order_id_mapper=self.zerodha_to_blitz  # Pass the mapping dictionary
             )
-            self.websocket.start()
             logging.info("WebSocket started successfully")
             self.redis.publish(config.CH_ZERODHA_RESPONSES, "WebSocket started successfully")
         except Exception as e:
@@ -247,23 +279,8 @@ class ZerodhaConnector:
         except Exception as e:
             logging.error(f"Failed to publish WebSocket data to Redis: {e}")
 
-    def _subscribe_market_data(self, tokens, mode="full"):
-        """Subscribe to market data for given instrument tokens."""
-        if not self.websocket:
-            raise RuntimeError("WebSocket not initialized. Login first.")
-        
-        self.websocket.subscribe(tokens, mode)
-        logging.info(f"Subscribed to {len(tokens)} instruments in {mode} mode")
 
-    # def _send_response_to_blitz(self, data, error):
-    #     response = {
-    #         #"broker": "Zerodha",
-    #         #"request_id": req_id,
-    #         #"status": status,
-    #         "data": data,
-    #         "error": error
-    #     }
-    #     self.redis.publish(config.CH_BLITZ_RESPONSES, json.dumps(response))
+
 
 if __name__ == "__main__":
     connector = ZerodhaConnector()

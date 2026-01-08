@@ -77,14 +77,14 @@ class BrokerOrderMapper:
     """
 
     @staticmethod
-    def map(broker_name: str, raw_data) -> OrderLog:
+    def map(broker_name: str, raw_data, blitz_order_id: str = None) -> OrderLog:
         """raw_data should be a dict, not a string"""
         order_log = OrderLog()
         try:
             data = raw_data if isinstance(raw_data, dict) else json.loads(raw_data)
 
             if broker_name.lower() == "zerodha":
-                BrokerOrderMapper._map_zerodha(data, order_log)
+                BrokerOrderMapper._map_zerodha(data, order_log, blitz_order_id)
             # Add other brokers here if needed
             else:
                 raise ValueError(f"Unsupported broker: {broker_name}")
@@ -100,7 +100,7 @@ class BrokerOrderMapper:
     # ZERODHA
     # ─────────────────────────────
     @staticmethod
-    def _map_zerodha_minimal(data: dict, o: OrderLog):
+    def _map_zerodha(data: dict, o: OrderLog, blitz_order_id: str = None):
         # Handle cases where data might be nested in 'details' or direct
         details = data.get("details", data)
 
@@ -109,7 +109,8 @@ class BrokerOrderMapper:
         o.InstrumentId = details.get("instrument_token", 0)
         o.ExchangeSegment = details.get("exchange")
         o.InstrumentName = details.get("tradingsymbol")
-        o.BlitzOrderId = details.get("order_id")
+        # Use provided Blitz ID if available, otherwise fall back to Zerodha order_id
+        o.BlitzOrderId = blitz_order_id #if blitz_order_id else details.get("order_id")
         o.ExchangeOrderId = details.get("exchange_order_id", details.get("order_id"))
         o.ExecutionId = 0
         o.OrderType = details.get("order_type", "").upper()
