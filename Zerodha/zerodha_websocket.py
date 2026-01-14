@@ -65,7 +65,7 @@ class ZerodhaWebSocket:
             # 2. Use ZerodhaMapper for standardization
             blitz_response = ZerodhaMapper.to_blitz(data, "orders")
             if blitz_response:
-                 logging.info(f"[WEB Socket - BLITZ STANDARD] {json.dumps(blitz_response)}")
+                 logging.info(f"[BLITZ WEBSOCKET] {json.dumps(blitz_response)}")
                  publish_message("TPOMS.request", json.dumps(blitz_response))
 
         except Exception as e:
