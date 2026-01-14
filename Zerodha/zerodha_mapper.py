@@ -80,3 +80,21 @@ class ZerodhaMapper:
                 return result.get("order_id")
         else:
             return result
+
+    @staticmethod
+    def resolve_order_id(data, id_mapping):
+        """
+        Resolves order ID from BlitzOrderID using the provided mapping.
+        BlitzOrderID is mandatory.
+        """
+        blitz_order_id = data.get("BlitzOrderID")
+        
+        if not blitz_order_id:
+             raise ValueError("Missing mandatory field: 'BlitzOrderID'")
+
+        zerodha_order_id = id_mapping.get(blitz_order_id)
+        if zerodha_order_id:
+            logging.info(f"Resolved Blitz ID {blitz_order_id} -> Zerodha ID {zerodha_order_id}")
+            return zerodha_order_id
+        
+        raise ValueError(f"Blitz order ID '{blitz_order_id}' not found in mapping")

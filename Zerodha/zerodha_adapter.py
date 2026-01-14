@@ -1,83 +1,213 @@
 
-from Zerodha.api.auth import ZerodhaAuthAPI
+import json
+import logging
+
+
+from Zerodha.zerodha_mapper import ZerodhaMapper
 from Zerodha.api.order import ZerodhaOrderAPI
 from Zerodha.api.portfolio import ZerodhaPortfolioAPI
+from Zerodha.api.auth import ZerodhaAuthAPI
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='[%(levelname)s] %(message)s')
 
 class ZerodhaAdapter:
-    def __init__(self, api_key, api_secret, redirect_url, access_token=None):
+    def __init__(self, entity_id=None, creds=None):
         """
-        access_token: optional, if provided, adapter will skip manual login
+        entity_id: optional, used for mapping
+        creds: dict containing keys like api_key, api_secret, access_token, redirect_url
         """
-        # Setup the adapter with API keys
-        self.api_key = api_key
-        self.api_secret = api_secret
-        self.redirect_url = redirect_url
-        self.access_token = access_token
+        self.entity_id = entity_id
+        self.creds = creds or {}
 
-        # 1. Prepare the Zerodha API helpers
-        self.auth_api = None
-        self.order_api = None     # Will be created after login or if access_token is provided
-        self.portfolio_api = None
-        if not access_token:
-            self.auth_api = ZerodhaAuthAPI(self.api_key, self.api_secret, self.redirect_url)
-        self.order_api = None     # Will be created after login or if access_token is provided
-        self.portfolio_api = None # Will be created after login or if access_token is provided
+        api_key = self.creds.get("api_key", "")
+        api_secret = self.creds.get("api_secret", "")
+        redirect_url = self.creds.get("redirect_url", "http://localhost")
+        self.access_token = self.creds.get("access_token")
+        self.user_id = self.creds.get("user_id", "")
 
-        # If access_token is provided, initialize Order and Portfolio APIs immediately
-        if self.access_token:
-            self.order_api = ZerodhaOrderAPI(self.access_token, self.api_key)
-            self.portfolio_api = ZerodhaPortfolioAPI(self.access_token, self.api_key)
+        self.order_api = ZerodhaOrderAPI(access_token=self.access_token, api_key=self.api_key)
+        self.portfolio_api = ZerodhaPortfolioAPI(access_token=self.access_token, api_key=self.api_key)
+        self.auth_api = ZerodhaAuthAPI(access_token=self.access_token, api_key=self.api_key)
 
-    # ------------------ API Actions ------------------
+        #logging.info("Initializing Zerodha Adapter...")
+        #self.adapter = ZerodhaAdapter(api_key, api_secret, redirect_url, access_token=self.access_token)
+        logging.info("Zerodha Adapter initialized successfully.")
 
-    def login(self, request_token):
+
+        # ID Mapping Init
+        self.blitz_to_zerodha = {}
+        self.zerodha_to_blitz = {}
+
+
+
+    def process_command(self, payload):
+
+
         """
-        Logs in and creates the Order/Portfolio API objects.
+        Public method to process a command dictionary directly.
         """
-        self.access_token = self.auth_api.exchange_token(request_token)
 
-        # Now we can create these because we have the access token
-        self.order_api = ZerodhaOrderAPI(self.access_token, self.api_key)
-        self.portfolio_api = ZerodhaPortfolioAPI(self.access_token, self.api_key)
-        
-        return {"access_token": self.access_token}
 
-    def logout(self):
-        self.access_token = None
-        self.order_api = None
-        self.portfolio_api = None
+        action = payload.get("action")
+        blitz_data = payload.get("data", {})
 
-    def _check_login(self):
-        """Helper to check if we are logged in before doing actions."""
-        if not self.access_token:
-            raise RuntimeError("Not logged in! LOGIN first.")
+        logging.info(f"Received: {action}")
 
-    # --- Wrapper Functions (Just call the API and return the result) ---
+        api_response = None
+        error_msg = None
 
-    def place_order(self, symbol, qty, order_type, transaction_type, product, exchange, validity, price, trigger_price):
-        self._check_login()
-        return self.order_api.place_order(symbol, qty, order_type, transaction_type, product, exchange, validity, price, trigger_price)
+        try:
+            if action == "PLACE_ORDER":
+                params = ZerodhaMapper.to_zerodha(blitz_data)
+                api_response = self.order_api.place_order(
+                    symbol=params["symbol"],
+                    qty=params["qty"],
+                    order_type=params["order_type"],
+                    transaction_type=params["transaction_type"],
+                    product=params["product"],
+                    exchange=params["exchange"],
+                    price=params["price"],
+                    trigger_price=params["trigger_price"],
+                    validity=params["validity"]
+                )
 
-    def modify_order(self, order_id, order_type, qty, validity, price=None):
-        self._check_login()
-        return self.order_api.modify_order(order_id, order_type, qty, validity, price)
+                try:
+                    # Extract Zerodha order ID using Mapper
+                    order_id = ZerodhaMapper.extract_order_id(api_response)
+                    blitz_id = blitz_data.get("BlitzOrderID")
+                    
+                    # Store Mapping
+                    if blitz_id and order_id:
+                        self.blitz_to_zerodha[blitz_id] = str(order_id)
+                        self.zerodha_to_blitz[str(order_id)] = blitz_id
+                        logging.info(f"Mapped: {blitz_id} -> {order_id}")
 
-    def cancel_order(self, order_id):
-        self._check_login()
-        return self.order_api.cancel_order(order_id)
+                    api_response = {
+                        "blitz_order_id": blitz_id,
+                        "zerodha_order_id": order_id,
+                        "zerodha_response": api_response 
+                    }
 
-    def get_orders(self):
-        self._check_login()
-        return self.order_api.get_orders()
+                except Exception as e:
+                    logging.error(f"Failed to process response mapping: {e}")
+                
+                logging.info(f"[ZERODHA RESPONSE] {json.dumps(api_response)}")
 
-    def get_order_details(self, order_id):
-        self._check_login()
-        return self.order_api.get_order_by_id(order_id)
 
-    def get_holdings(self):
-        self._check_login()
-        return self.portfolio_api.get_holdings()
+            elif action == "MODIFY_ORDER":
+                zerodha_order_id = ZerodhaMapper.resolve_order_id(blitz_data, self.blitz_to_zerodha)
+                params = ZerodhaMapper.to_zerodha(blitz_data)
+                
+                api_response = self.order_api.modify_order(
+                    order_id=zerodha_order_id,
+                    order_type=params.get("order_type"),
+                    qty=params.get("qty"),
+                    validity=params.get("validity"),
+                    price=params.get("price")
+                )
 
-    def get_positions(self):
-        self._check_login()
-        return self.portfolio_api.get_positions()
+                logging.info(f"[ZERODHA RESPONSE] {json.dumps(api_response)}")
+                
+                blitz_response = ZerodhaMapper.to_blitz(api_response, "orders")
+                logging.info(f"[BLITZ RESPONSE] {json.dumps(blitz_response)}")
+                
+                
+
+
+            elif action == "CANCEL_ORDER":
+                 zerodha_order_id = ZerodhaMapper.resolve_order_id(blitz_data, self.blitz_to_zerodha)
+                 api_response = self.order_api.cancel_order(zerodha_order_id)
+                 logging.info(f"[ZERODHA RESPONSE] {json.dumps(api_response)}")
+                 
+                 blitz_response = ZerodhaMapper.to_blitz(api_response, "orders")
+                 if blitz_response:
+                     logging.info(f"[BLITZ RESPONSE] {json.dumps(blitz_response)}")
+                
+                 
+            
+            
+
+            elif action == "GET_ORDERS":
+                api_response = self.order_api.get_orders()
+                logging.info(f"[ZERODHA RESPONSE] {json.dumps(api_response, default=str)}")
+                blitz_response = ZerodhaMapper.to_blitz(api_response, "orders")
+                if blitz_response:
+                    logging.info(f"[BLITZ RESPONSE] {json.dumps(blitz_response)}")
+                
+                
+
+            
+            
+            elif action == "GET_ORDER_DETAILS":
+                # Resolve order ID
+                zerodha_order_id = ZerodhaMapper.resolve_order_id(blitz_data, self.blitz_to_zerodha)
+                api_response = self.order_api.get_order_details(zerodha_order_id)
+                logging.info(f"[ZERODHA RESPONSE] {json.dumps(api_response, default=str)}")
+                
+                blitz_response = ZerodhaMapper.to_blitz([api_response], "orders")
+                if blitz_response:
+                    logging.info(f"[BLITZ RESPONSE] {json.dumps(blitz_response)}")
+                
+                
+
+            
+            elif action == "GET_HOLDINGS":
+                api_response = self.portfolio_api.get_holdings()
+                logging.info(f"[ZERODHA RESPONSE] {json.dumps(api_response, default=str)}")
+
+
+                blitz_response = ZerodhaMapper.to_blitz(api_response, "holdings")
+                if blitz_response:
+                    logging.info(f"[BLITZ RESPONSE] {json.dumps(blitz_response)}")
+                
+                
+
+
+            elif action == "GET_POSITIONS":
+                api_response = self.portfolio_api.get_positions()
+                logging.info(f"[ZERODHA RESPONSE] {json.dumps(api_response, default=str)}")
+                
+                blitz_response = ZerodhaMapper.to_blitz(api_response, "positions")
+                if blitz_response:
+                    logging.info(f"[BLITZ RESPONSE] {json.dumps(blitz_response)}")
+                
+                
+            
+
+
+            elif action == "GET_LOGIN_URL":
+                url = self.auth_api.generate_login_url()
+                api_response = {"login_url": url}
+                logging.info(f"[ZERODHA RESPONSE] {json.dumps(api_response, default=str)}")
+
+
+            elif action == "LOGIN":
+                 # Handle LOGIN specially if passed via this channel
+                 req_token = blitz_data.get("request_token")
+                 if not req_token:
+                     raise ValueError("Missing 'request_token'")
+                 api_response = self.auth_api.login(req_token)
+                 
+                 # Re-init WebSocket if login successful (this overrides the old one)
+                 self.access_token = self.auth_api.access_token
+                 logging.info(f"[ZERODHA RESPONSE] {json.dumps(api_response, default=str)}")
+                 
+            else:
+
+                logging.warning(f"Action '{action}' not implemented in automated mode")
+                
+        except Exception as e:
+            logging.error(f" !! Error executing {action}: {e}")
+            status = "ERROR"
+            error_msg = str(e)
+            logging.info(f"[ZERODHA RESPONSE] status={status} | error={error_msg}")
+
+
+
+
+
+
+if __name__ == "__main__":
+    adapter = ZerodhaAdapter()
+    adapter.start()

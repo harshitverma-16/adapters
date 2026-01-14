@@ -6,8 +6,8 @@ import os
 sys.path.append(os.getcwd()) 
 
 from kiteconnect import KiteTicker
-from Zerodha.mapper import ZerodhaMapper
-from common.redis_publisher import RedisPublisher
+from Zerodha.zerodha_mapper import ZerodhaMapper
+from common.redis_publisher import publish_message
 
 logging.basicConfig(level=logging.INFO, format='[WebSocket] %(message)s')
 
@@ -55,6 +55,24 @@ class ZerodhaWebSocket:
 
     # WEBSOCKET CALLBACKS
 
+    def _on_order_update(self, ws, data):
+        try:
+            logging.info(f"Order Update: {data.get('order_id')} [{data.get('status')}]")
+            
+            # 1. Publish Raw Zerodha Data (Unmodified) to Zerodha Channel
+            logging.info(f"[WEB Socket - ZERODHA] {json.dumps(data)}")
+            
+            # 2. Use ZerodhaMapper for standardization
+            blitz_response = ZerodhaMapper.to_blitz(data, "orders")
+            if blitz_response:
+                 logging.info(f"[WEB Socket - BLITZ STANDARD] {json.dumps(blitz_response)}")
+                 publish_message("TPOMS.request", json.dumps(blitz_response))
+
+        except Exception as e:
+            logging.error(f"Error processing order update: {e}")
+
+
+
     def _on_connect(self, ws, response):
         self.is_connected = True
         logging.info("WebSocket connected")
@@ -65,6 +83,8 @@ class ZerodhaWebSocket:
             "data": {"source": "zerodha_websocket", "status": "CONNECTED"}
         }
         logging.info(f"Connected Event: {event}")
+
+
 
     def _on_close(self, ws, code, reason):
         self.is_connected = False
@@ -86,6 +106,8 @@ class ZerodhaWebSocket:
         else:
             logging.info("Reconnection suppressed (Manual Stop).")
     
+
+
     def _on_error(self, ws, code, reason):
         logging.error(f"WebSocket error: {code} {reason}")
         
@@ -96,22 +118,9 @@ class ZerodhaWebSocket:
         }
         logging.info(f"Error Event: {event}")
 
-    def _on_order_update(self, ws, data):
-        try:
-            logging.info(f"Order Update: {data.get('order_id')} [{data.get('status')}]")
-            
-            # 1. Publish Raw Zerodha Data (Unmodified) to Zerodha Channel
-            logging.info(f"[WS RAW ZERODHA] {json.dumps(data)}")
-            
-            # 2. Use ZerodhaMapper for standardization
-            blitz_response = ZerodhaMapper.to_blitz(data, "orders")
-            if blitz_response:
-                 logging.info(f"[WS BLITZ STANDARD] {json.dumps(blitz_response)}")
 
-        except Exception as e:
-            logging.error(f"Error processing order update: {e}")
 
 
 
 if __name__ == "__main__":
-    print("This file is designed to be imported by zerodha_connector.py")
+    print("This file is designed to be imported by zerodha_adapter.py")

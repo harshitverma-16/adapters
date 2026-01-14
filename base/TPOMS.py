@@ -10,7 +10,7 @@ BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if BASE_DIR not in sys.path:
     sys.path.insert(0, BASE_DIR)
 
-from Zerodha.zerodha_connector import ZerodhaConnector
+from Zerodha.zerodha_adapter import ZerodhaAdapter
 import config
 
 # Configure logging
@@ -51,7 +51,7 @@ class TradeListener:
         if broker == "Zerodha":
             logging.info(f"Initializing new Zerodha connector for {entity_id}")
             # Initialize Connector (this starts WebSocket if access_token is present)
-            connector = ZerodhaConnector(entity_id=entity_id, creds=creds)
+            connector = ZerodhaAdapter(entity_id=entity_id, creds=creds)
             self.connectors[key] = connector
             return connector
         
