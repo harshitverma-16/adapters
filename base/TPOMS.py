@@ -72,10 +72,17 @@ class TradeListener:
                 if entity_data:
                     payload = json.loads(entity_data)
                     entity_id = key.split(":", 1)[1]
-                    brokers = payload.get("brokers", {})
                     
+                    # Support legacy "brokers" dict
+                    brokers = payload.get("brokers", {})
                     for broker_name, creds in brokers.items():
-                        # Initialize connector for each broker found
+                        self.get_connector(broker_name, entity_id, creds)
+                        logging.info(f"Loaded credentials for {entity_id} -> {broker_name}")
+
+                    # Support new simplified schema
+                    if "broker" in payload and "creds" in payload:
+                        broker_name = payload["broker"]
+                        creds = payload["creds"]
                         self.get_connector(broker_name, entity_id, creds)
                         logging.info(f"Loaded credentials for {entity_id} -> {broker_name}")
         except Exception as e:
@@ -148,8 +155,8 @@ class TradeListener:
                     # Since process_command runs the logic, assuming we can get the new token if it succeeded.
                     # Ideally, process_command should return status, but it's void/async in this architecture.
                     # We can check connector.access_token directly.
-                    if connector.adapter.access_token:
-                         self.save_token_to_redis(entity_id, broker, connector.adapter.access_token)
+                    if connector.access_token:
+                         self.save_token_to_redis(entity_id, broker, connector.access_token)
 
             else:
                 logging.error(f"Could not create connector for {broker}:{entity_id}")

@@ -20,18 +20,17 @@ class ZerodhaAdapter:
         self.entity_id = entity_id
         self.creds = creds or {}
 
-        api_key = self.creds.get("api_key", "")
-        api_secret = self.creds.get("api_secret", "")
-        redirect_url = self.creds.get("redirect_url", "http://localhost")
+        self.api_key = self.creds.get("api_key", "")
+        self.api_secret = self.creds.get("api_secret", "")
+        self.redirect_url = self.creds.get("redirect_url", "http://localhost")
         self.access_token = self.creds.get("access_token")
         self.user_id = self.creds.get("user_id", "")
 
         self.order_api = ZerodhaOrderAPI(access_token=self.access_token, api_key=self.api_key)
         self.portfolio_api = ZerodhaPortfolioAPI(access_token=self.access_token, api_key=self.api_key)
-        self.auth_api = ZerodhaAuthAPI(access_token=self.access_token, api_key=self.api_key)
+        self.auth_api = ZerodhaAuthAPI(api_key=self.api_key, api_secret=self.api_secret, redirect_url=self.redirect_url)
 
-        #logging.info("Initializing Zerodha Adapter...")
-        #self.adapter = ZerodhaAdapter(api_key, api_secret, redirect_url, access_token=self.access_token)
+
         logging.info("Zerodha Adapter initialized successfully.")
 
 
@@ -122,7 +121,7 @@ class ZerodhaAdapter:
                  
                  blitz_response = ZerodhaMapper.to_blitz(api_response, "orders")
                  if blitz_response:
-                     logging.info(f"[BLITZ RESPONSE] {json.dumps(blitz_response)}")
+                    logging.info(f"[BLITZ RESPONSE] {json.dumps(blitz_response)}")
                 
                  
             
