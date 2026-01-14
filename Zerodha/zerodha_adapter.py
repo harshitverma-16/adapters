@@ -1,20 +1,32 @@
+
 from Zerodha.api.auth import ZerodhaAuthAPI
 from Zerodha.api.order import ZerodhaOrderAPI
 from Zerodha.api.portfolio import ZerodhaPortfolioAPI
 
 class ZerodhaAdapter:
-    def __init__(self, api_key, api_secret, redirect_url):
-        
-        # Setup the adapter with API keys.
+    def __init__(self, api_key, api_secret, redirect_url, access_token=None):
+        """
+        access_token: optional, if provided, adapter will skip manual login
+        """
+        # Setup the adapter with API keys
         self.api_key = api_key
         self.api_secret = api_secret
         self.redirect_url = redirect_url
+        self.access_token = access_token
 
         # 1. Prepare the Zerodha API helpers
-        self.auth_api = ZerodhaAuthAPI(self.api_key, self.api_secret, self.redirect_url)
-        self.order_api = None     # Will be created after login
-        self.portfolio_api = None # Will be created after login
-        self.access_token = None
+        self.auth_api = None
+        self.order_api = None     # Will be created after login or if access_token is provided
+        self.portfolio_api = None
+        if not access_token:
+            self.auth_api = ZerodhaAuthAPI(self.api_key, self.api_secret, self.redirect_url)
+        self.order_api = None     # Will be created after login or if access_token is provided
+        self.portfolio_api = None # Will be created after login or if access_token is provided
+
+        # If access_token is provided, initialize Order and Portfolio APIs immediately
+        if self.access_token:
+            self.order_api = ZerodhaOrderAPI(self.access_token, self.api_key)
+            self.portfolio_api = ZerodhaPortfolioAPI(self.access_token, self.api_key)
 
     # ------------------ API Actions ------------------
 
@@ -46,9 +58,9 @@ class ZerodhaAdapter:
         self._check_login()
         return self.order_api.place_order(symbol, qty, order_type, transaction_type, product, exchange, validity, price, trigger_price)
 
-    def modify_order(self, order_id, order_type, qty, validity):
+    def modify_order(self, order_id, order_type, qty, validity, price=None):
         self._check_login()
-        return self.order_api.modify_order(order_id, order_type, qty, validity)
+        return self.order_api.modify_order(order_id, order_type, qty, validity, price)
 
     def cancel_order(self, order_id):
         self._check_login()

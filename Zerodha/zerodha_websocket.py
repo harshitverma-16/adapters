@@ -6,26 +6,19 @@ import os
 sys.path.append(os.getcwd()) 
 
 from kiteconnect import KiteTicker
-from common.broker_order_mapper import BrokerOrderMapper
+from Zerodha.mapper import ZerodhaMapper
+from common.redis_publisher import RedisPublisher
 
 logging.basicConfig(level=logging.INFO, format='[WebSocket] %(message)s')
 
 class ZerodhaWebSocket:
-    def __init__(self, api_key, access_token, user_id, callback_func):
+    def __init__(self, api_key, access_token, user_id):
         """
         Initialize the WebSocket.
-        :param callback_func: Function(channel, message) to publish data externally.
         """
         self.api_key = api_key
         self.access_token = access_token.strip() if access_token else None
         self.user_id = user_id
-        
-        # External Callback for publishing (Decoupled from Redis)
-        self.callback_func = callback_func
-        
-        # Channel Names (Still useful to define here for routing)
-        self.CH_ZERODHA_RESPONSE = "zerodha.response"
-        self.CH_BLITZ_RESPONSE = "blitz.response"
         
         self.kws = None
         self.is_connected = False
@@ -58,22 +51,9 @@ class ZerodhaWebSocket:
             self.kws.close()
             logging.info("WebSocket connection closed manually.")
 
-    def subscribe(self, tokens, mode="full"):
-        if self.is_connected and self.kws:
-            logging.info(f"Subscribing to: {tokens} | Mode: {mode}")
-            self.kws.subscribe(tokens)
-            self.kws.set_mode(self.kws.MODE_FULL if mode == "full" else self.kws.MODE_QUOTE, tokens)
-        else:
-            logging.warning("Cannot subscribe: WebSocket is not connected.")
 
-    # ----------------------------------------------------------------
+
     # WEBSOCKET CALLBACKS
-    # ----------------------------------------------------------------
-
-    def _publish(self, channel, message):
-        """Helper to invoke external callback safely."""
-        if self.callback_func:
-            self.callback_func(channel, message)
 
     def _on_connect(self, ws, response):
         self.is_connected = True
@@ -84,7 +64,7 @@ class ZerodhaWebSocket:
             "broker": "Zerodha",
             "data": {"source": "zerodha_websocket", "status": "CONNECTED"}
         }
-        self._publish(self.CH_BLITZ_RESPONSE, json.dumps(event))
+        logging.info(f"Connected Event: {event}")
 
     def _on_close(self, ws, code, reason):
         self.is_connected = False
@@ -95,7 +75,7 @@ class ZerodhaWebSocket:
             "broker": "Zerodha",
             "data": {"source": "zerodha_websocket", "status": "DISCONNECTED", "code": code, "reason": reason}
         }
-        self._publish(self.CH_BLITZ_RESPONSE, json.dumps(event))
+        logging.info(f"Close Event: {event}")
         
         if self.should_reconnect:
             import time
@@ -114,42 +94,23 @@ class ZerodhaWebSocket:
             "broker": "Zerodha",
             "data": {"source": "zerodha_websocket", "status": "ERROR", "code": code, "reason": reason}
         }
-        self._publish(self.CH_BLITZ_RESPONSE, json.dumps(event))
+        logging.info(f"Error Event: {event}")
 
     def _on_order_update(self, ws, data):
         try:
             logging.info(f"Order Update: {data.get('order_id')} [{data.get('status')}]")
             
             # 1. Publish Raw Zerodha Data (Unmodified) to Zerodha Channel
-            self._publish(self.CH_ZERODHA_RESPONSE, json.dumps(data))
-            logging.info(f"Published RAW update to {self.CH_ZERODHA_RESPONSE}")
+            logging.info(f"[WS RAW ZERODHA] {json.dumps(data)}")
             
-            # 2. Map to Blitz OrderLog format
-            order_log = BrokerOrderMapper.map("zerodha", data)
-            
-            # 3. Publish STANDARDIZED Blitz format to Blitz Channel
-            blitz_response = {
-                "message_type": "ORDER_UPDATE",
-                "broker": "Zerodha",
-                "data": order_log.to_dict()
-            }
-            self._publish(self.CH_BLITZ_RESPONSE, json.dumps(blitz_response))
-            logging.info(f"Published standardized order to {self.CH_BLITZ_RESPONSE}")
+            # 2. Use ZerodhaMapper for standardization
+            blitz_response = ZerodhaMapper.to_blitz(data, "orders")
+            if blitz_response:
+                 logging.info(f"[WS BLITZ STANDARD] {json.dumps(blitz_response)}")
 
         except Exception as e:
             logging.error(f"Error processing order update: {e}")
 
-    def _on_ticks(self, ws, ticks):
-        try:
-            response = {
-                "message_type": "MARKET_DATA",
-                "broker": "Zerodha",
-                "data": ticks
-            }
-            # Wrapper for datetime serialization
-            self._publish(self.CH_BLITZ_RESPONSE, json.dumps(response, default=str))
-        except Exception as e:
-            logging.error(f"Error publishing ticks: {e}")
 
 
 if __name__ == "__main__":
